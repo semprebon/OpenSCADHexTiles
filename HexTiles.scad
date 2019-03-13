@@ -7,7 +7,7 @@ use <MCAD/triangles.scad>
 use <HexUtils.scad>
 
 hex_size = 25.4;
-base_thickness = 3.0;
+base_thickness = 4.0;
 level_thickness = 6;
 
 tileShape = "hex";
@@ -32,10 +32,12 @@ dx = dx(hex_size);
 dy = dy(hex_size);
 dz = level_thickness;
 
-top_size = hex_size-sqrt(3)*grid_line_width/2;
+top_size = hex_size - grid_line_width;
 
-
-module textureTile(height, tile=[], position) {
+/*
+ Generate the textured top of a hex
+*/
+module top_texture(height, tile=[], position) {
     if (tile != []) {
         level = tile[0];
         surface_image = tile[1][0];
@@ -53,26 +55,33 @@ module textureTile(height, tile=[], position) {
 
 module hex_strut(height) {
     supportLength = hex_size*2 - 2*grid_line_width/sqrt(3)+0.1;
-    translate([0,0,height-hex_size/2]) rotate([0,0,0]) cube([grid_line_width, supportLength, hex_size], center=true);
+    translate([0,0,height-hex_size/2]) rotate([0,0,0])
+        cube([grid_line_width, supportLength, hex_size], center=true);
 }
 
 module hex_support(height) {
     translate([0,0,height]) {
         for (i = [0:5]) {
             rotate([0,0,60*i]) {
-                translate([hex_size*sqrt(3)/2-grid_line_width/2,0,0]) rotate([0,90,90]) translate([0,0,-hex_size/2]) {
-                    triangle(grid_line_width, grid_line_width, hex_size);
+                translate([dx-grid_line_width/2,0,0]) rotate([0,90,90]) translate([0,0,-dy]) {
+                    triangle(grid_line_width, grid_line_width, 2*dy);
                 }
             }
         }
-        difference() {
-            linear_extrude(height=grid_line_depth) hex_shape(top_size);
-            translate([0,0,-0.1]) linear_extrude(height=grid_line_depth+0.2) hex_shape(top_size-grid_line_width);
+    }
+    difference() {
+        linear_extrude(height=height) hex_shape(hex_size);
+        translate([0,0,-0.1]) linear_extrude(height=height+0.1) {
+            hex_shape(hex_size-grid_line_width);
         }
     }
 }
+
 /*
- Generate a single hex
+ Generate a single hex with center at the specified cartesian position
+
+ position - position to place the hex, and for multi-hex textures, what part of texture to use
+ tile - tile data [level,texture]
 */
 module hex(grid_position=[0,0], tile=[]) {
     level = tile[0];
@@ -80,15 +89,21 @@ module hex(grid_position=[0,0], tile=[]) {
     top_size = hex_size-sqrt(3)*grid_line_width/2;
     position = axial_to_xy(grid_position, hex_size);
     translate(position) {
-        difference() {
-            linear_extrude(height=height-grid_line_depth) hex_shape(hex_size);
-            translate([0,0,-0.01]) linear_extrude(height=height-grid_line_depth+0.02) hex_shape(top_size+tolerance);
+//        difference() {
+//            linear_extrude(height=height-grid_line_depth) hex_shape(hex_size);
+//            translate([0,0,-0.01]) linear_extrude(height=height-grid_line_depth+0.02) hex_shape(top_size+tolerance);
+//        }
+        if (level > 0) {
+            hex_support(height-grid_line_depth);
+        } else {
+            //linear_extrude(height=base_thickness-grid_line_depth) hex_shape(hex_size);
         }
+
         if (tile[1] == SUPPORT) {
             hex_support(height-grid_line_depth);
         } else {
              translate([0,0,height-grid_line_depth]) linear_extrude(height=grid_line_depth) hex_shape(top_size);
-             textureTile(height=height, tile=tile, top_size=top_size, position=position);
+             top_texture(height=height, tile=tile, top_size=top_size, position=position);
         }
     }
 }

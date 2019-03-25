@@ -1,7 +1,13 @@
-// HexTile generator in OpenSCAD
-//
-// Hexes are referenced by axial coordinates (see https://www.redblobgames.com/grids/hexagons/)
-// the x axis gets the pointy ends of the hex, while y is flat
+/*
+ HexTile generator in OpenSCAD
+
+ Hexes are referenced by axial coordinates (see https://www.redblobgames.com/grids/hexagons/)
+ the x axis gets the pointy ends of the hex, while y is flat
+
+ TODO: allow [x,y] size vales for hexes and semi-hexes
+ TODO: add openings in support walls to reduce print costs
+ TODO: convert remaining png surfaces to stl
+*/
 
 use <MCAD/triangles.scad>
 include <HexUtils.scad>
@@ -136,12 +142,6 @@ module surface_geometry(terrain) {
     }
 }
 
-module hex_strut(height) {
-    supportLength = hex_size*2 - 2*grid_line_width/sqrt(3)+0.1;
-    translate([0,0,height-hex_size/2]) rotate([0,0,0])
-        cube([grid_line_width, supportLength, hex_size], center=true);
-}
-
 /*
  Create the hollow support for higher hexes.
 
@@ -150,53 +150,15 @@ module hex_strut(height) {
  support the cap and texture in a way that can be printed (usually) without support
  using bridging.
 
- height - nominal height of outside wall
+ tile - tile data
+ hex_data - hex data
  support_width - extra width provided at top to support cap. This should be less
     than the height (or the wall at the bottom will be too thick to allow stacking),
     but large enough so that the filament can bridge the top.
 
 */
-module hex_support(height, support_width=0) {
-    // support angles in at 45 degree overhang
-    if (support_width > 0) {
-        translate([0,0,height]) {
-            for (i = [0:5]) {
-                rotate([0,0,60*i]) {
-                    translate([dx-support_width/2,0,0]) rotate([0,90,90]) translate([0,0,-dy]) {
-                        triangle(support_width, support_width, 2*dy);
-                    }
-                }
-            }
-        }
-    }
-    // outside wall
-    difference() {
-        linear_extrude(height=height) hex_shape(hex_size);
-        translate([0,0,-fudge]) linear_extrude(height=height+fudge) {
-            hex_shape(hollow_size);
-        }
-    }
-}
-
-//module wall_opening(tile, hex_data) {
-//}
-
-/*
- Create the hollow support for higher hexes.
-
- This consists of a hollow hexagonal prism of the correct outer size, a hollow
- interior, walls that are wall-width thick. At the top end, the walls widen to
- support the cap and texture in a way that can be printed (usually) without support
- using bridging.
-
- height - nominal height of outside wall
- support_width - extra width provided at top to support cap. This should be less
-    than the height (or the wall at the bottom will be too thick to allow stacking),
-    but large enough so that the filament can bridge the top.
-
-*/
-module render_support(tile, hex, support_width=0) {
-    height = hex_height(hex);
+module render_support(tile, hex_data, support_width=0) {
+    height = hex_height(hex_data);
     // support angles in at 45 degree overhang
     if (support_width > 0) {
         translate([0,0,height]) {
@@ -223,7 +185,9 @@ module render_support(tile, hex, support_width=0) {
     }
 }
 
-
+/*
+  Generate the tile cap that joins the texture to the support
+*/
 module cap(thickness,hollow=false) {
     if (hollow) {
         difference() {
@@ -236,7 +200,7 @@ module cap(thickness,hollow=false) {
 }
 
 /*
- Generate a single hex with center at the specified cartesian position
+ Generate a single hex
 
  tile - tile data [type,size,hexes]
  index - index of hex to render
@@ -275,6 +239,9 @@ module render_hex(tile, index) {
     }
 }
 
+/*
+ Generates a 2d outline of the whole tile
+*/
 module tile_outline(tile) {
     hexes = tile[TILE_HEXES];
     union() {
@@ -284,6 +251,9 @@ module tile_outline(tile) {
     }
 }
 
+/*
+ Generates the entire tile
+ */
 module render_tile(type, size, tile_data) {
     tile = create_tile(type=type, size=size, data=tile_data);
     intersection() {

@@ -4,27 +4,37 @@
 // the x axis gets the pointy ends of the hex, while y is flat
 
 use <MCAD/triangles.scad>
-use <HexUtils.scad>
+include <HexUtils.scad>
 
 hex_size = 25.4;
-base_thickness = 4.0;
+base_thickness = 1.6;
 level_thickness = 6;
 
 tileShape = "hex";
 tileSize = 1;
 
 wall_width = 1.6;
-tolerance = 0.4;
-grid_line_width = 1.6 + tolerance;
-grid_line_depth = 1.2;
+tolerance = 0.2;
+grid_line_width = wall_width;
+grid_line_depth = 0.8;
 
 pattern_height = 1.0;
 pattern_size = 64;
 
-STONE_PATH = ["stones", 64, 0.01];
-STONE_ROUGH = ["stones", 64, 0.06];
-GRASS_PATH = ["grass_64s", 64, 0.04];
+fudge = 0.001;
+
+STONE = ["stones.stl"];
+WOOD = ["wood.stl"];
+DIRT = ["sand_64", 128, 1];
+GRASS = ["grass.stl"];
+
+ROCKS = ["stones", 64 , 5];
+DEBRIS = ["stones", 64, 4];
+
+BRUSH = ["vines.stl"];
+WATER = ["water.stl"];
 SUPPORT = ["support", 0, 0];
+FLAT = [];
 
 SPECIAL_TEXTURES = [SUPPORT[0]];
 
@@ -32,24 +42,97 @@ dx = dx(hex_size);
 dy = dy(hex_size);
 dz = level_thickness;
 
-top_size = hex_size - grid_line_width;
+hollow_size = hex_size - 2*wall_width;
+top_size = hollow_size - 2*tolerance;
+
+function ends_with(s, s2) =
+    let(
+        offset = len(s2)-len(s),
+        suffix = [for (i = [0:(len(s)-1)]) (s2[offset+i] == s[i]) ? 1 : 0])
+    min(suffix) == 1;
+
+function is_file_type(type, filename) =
+    ends_with(str(".", type), filename);
+
+/* Terrain Offsets */
+TERRAIN_FILE = 0;
+TERRAIN_IMAGE_CROP = 1;
+TERRAIN_IMAGE_Z_HEIGHT = 2;
+
+/* Hex Data Offsets */
+HEX_POSITION = 0;   // Axial coordinates of hex
+HEX_LEVEL = 1;      // height of hex, in abstract coordinates
+HEX_TERRAIN = 2;    // Terrain object
+
+function hex_data(position, descriptor) = [position, descriptor[0], descriptor[1]];
+
+function hex_height(hex_data) = level_thickness * hex_data[HEX_LEVEL];
+
+/* Offsets ino tile object */
+TILE_TYPE = 0; // "hex", "semi_hex", or "rect
+TILE_SIZE = 1; // [x,y] size of tile
+TILE_HEXES = 2; //
+
+/* Tile geometries */
+TILE_TYPE_HEX = "hex";
+TILE_TYPE_SEMI_HEX = "semi_hex";
+TILE_TYPE_RECT = "rect";
 
 /*
- Generate the textured top of a hex
+ Create a specified type and size of tile from texture information
 */
-module top_texture(height, tile=[], position) {
-    if (tile != []) {
-        level = tile[0];
-        surface_image = tile[1][0];
-        pattern_size = tile[1][1];
-        pattern_height = tile[1][2];
+function create_tile(type, size, data) =
+    let(
+        positions = (type == TILE_TYPE_HEX) ? hex_positions(size)
+            : (type == TILE_TYPE_SEMI_HEX) ? semi_hex_positions(size)
+            : (type == TILE_TYPE_RECT) ? rect_positions(size)
+            : ["error"],
+        hexes = [for (i = range_from(len(positions)))
+                    hex_data(position=positions[i], descriptor = data[i % len(data)])])
+    [type, size,  hexes];
+
+/*
+ Return the hex data for a given hex position
+*/
+function hex_at_position(tile, position) =
+    let (
+        offset = search([position], tile[TILE_HEXES], 1, HEX_POSITION)[0])
+    tile[TILE_HEXES][offset];
+
+function is_hex_inner_wall(tile, hex_data, dir) =
+    hex_at_position(tile, hex_data[HEX_POSITION] + step(dir)) == [];
+
+function max_level(tile) = max([for (i=range_from(tile[TILE_HEXES])) tile[TILE_HEXES][i][HEX_LEVEL]]);
+
+/*
+ Generate the textured top of a hex from an image
+*/
+module top_texture(terrain) {
+    if (terrain != []) {
+        surface_image = terrain[TERRAIN_FILE];
+        pattern_size = terrain[TERRAIN_IMAGE_CROP];
+        pattern_height = terrain[TERRAIN_IMAGE_Z_HEIGHT];
         xyScale = 2*hex_size/pattern_size;
         image_offset = [0,0]; //[position.x % pattern_size, position.y % pattern_size];
-        translate([0,0,height]) intersection() {
-            linear_extrude(height=100) hex_shape(top_size);
-            translate(-image_offset/2) scale([xyScale, xyScale, pattern_height])
-            surface(file=str("textures/", surface_image, ".png"), center=true);
+        union() {
+            if (surface_image != undef) {
+                intersection() {
+                    linear_extrude(height=level_thickness) hex_shape(top_size);
+                    translate([-image_offset/2,0]) scale([xyScale, xyScale, pattern_height/100])
+                        surface(file=str("textures/", surface_image, ".png"), center=true);
+                }
+            }
         }
+    }
+}
+
+/*
+ Import top geometry
+*/
+module surface_geometry(terrain) {
+    if (terrain != []) {
+        object_file = terrain[TERRAIN_FILE];
+        import(str("textures/", object_file), convexity=5);
     }
 }
 
@@ -59,104 +142,177 @@ module hex_strut(height) {
         cube([grid_line_width, supportLength, hex_size], center=true);
 }
 
-module hex_support(height) {
-    translate([0,0,height]) {
-        for (i = [0:5]) {
-            rotate([0,0,60*i]) {
-                translate([dx-grid_line_width/2,0,0]) rotate([0,90,90]) translate([0,0,-dy]) {
-                    triangle(grid_line_width, grid_line_width, 2*dy);
+/*
+ Create the hollow support for higher hexes.
+
+ This consists of a hollow hexagonal prism of the correct outer size, a hollow
+ interior, walls that are wall-width thick. At the top end, the walls widen to
+ support the cap and texture in a way that can be printed (usually) without support
+ using bridging.
+
+ height - nominal height of outside wall
+ support_width - extra width provided at top to support cap. This should be less
+    than the height (or the wall at the bottom will be too thick to allow stacking),
+    but large enough so that the filament can bridge the top.
+
+*/
+module hex_support(height, support_width=0) {
+    // support angles in at 45 degree overhang
+    if (support_width > 0) {
+        translate([0,0,height]) {
+            for (i = [0:5]) {
+                rotate([0,0,60*i]) {
+                    translate([dx-support_width/2,0,0]) rotate([0,90,90]) translate([0,0,-dy]) {
+                        triangle(support_width, support_width, 2*dy);
+                    }
                 }
             }
         }
     }
+    // outside wall
     difference() {
         linear_extrude(height=height) hex_shape(hex_size);
-        translate([0,0,-0.1]) linear_extrude(height=height+0.1) {
-            hex_shape(hex_size-grid_line_width);
+        translate([0,0,-fudge]) linear_extrude(height=height+fudge) {
+            hex_shape(hollow_size);
         }
+    }
+}
+
+//module wall_opening(tile, hex_data) {
+//}
+
+/*
+ Create the hollow support for higher hexes.
+
+ This consists of a hollow hexagonal prism of the correct outer size, a hollow
+ interior, walls that are wall-width thick. At the top end, the walls widen to
+ support the cap and texture in a way that can be printed (usually) without support
+ using bridging.
+
+ height - nominal height of outside wall
+ support_width - extra width provided at top to support cap. This should be less
+    than the height (or the wall at the bottom will be too thick to allow stacking),
+    but large enough so that the filament can bridge the top.
+
+*/
+module render_support(tile, hex, support_width=0) {
+    height = hex_height(hex);
+    // support angles in at 45 degree overhang
+    if (support_width > 0) {
+        translate([0,0,height]) {
+            for (i = [0:5]) {
+                rotate([0,0,60*i]) {
+                    translate([dx-support_width/2,0,0]) rotate([0,90,90]) translate([0,0,-dy]) {
+                        triangle(support_width, support_width, 2*dy);
+                    }
+                }
+            }
+        }
+    }
+    // outside wall
+    difference() {
+        linear_extrude(height=height) hex_shape(hex_size);
+        translate([0,0,-fudge]) linear_extrude(height=height+fudge) {
+            hex_shape(hollow_size);
+        }
+//        for (i = range_from(DIRECTIONS)) {
+//            if (is_hex_inner_wall(tile, hex_data, DIRECTIONS[i])) {
+//                rotate(ANGLES_FOR_DIRECTION[i]) translate([hex_size,0,]) cube([])
+//            }
+//        }
+    }
+}
+
+
+module cap(thickness,hollow=false) {
+    if (hollow) {
+        difference() {
+            linear_extrude(height=thickness) hex_shape(hex_size);
+            linear_extrude(height=thickness) hex_shape(top_size);
+        }
+    } else {
+        linear_extrude(height=thickness) hex_shape(hex_size);
     }
 }
 
 /*
  Generate a single hex with center at the specified cartesian position
 
- position - position to place the hex, and for multi-hex textures, what part of texture to use
- tile - tile data [level,texture]
+ tile - tile data [type,size,hexes]
+ index - index of hex to render
 */
-module hex(grid_position=[0,0], tile=[]) {
-    level = tile[0];
-    height = base_thickness + level_thickness * level;
-    top_size = hex_size-sqrt(3)*grid_line_width/2;
-    position = axial_to_xy(grid_position, hex_size);
+module render_hex(tile, index) {
+    hex_data = tile[TILE_HEXES][index];
+    level = hex_data[HEX_LEVEL];
+    terrain = hex_data[HEX_TERRAIN];
+    height = level_thickness * level;
+    position = axial_to_xy(hex_data[HEX_POSITION], hex_size);
+
     translate(position) {
-//        difference() {
-//            linear_extrude(height=height-grid_line_depth) hex_shape(hex_size);
-//            translate([0,0,-0.01]) linear_extrude(height=height-grid_line_depth+0.02) hex_shape(top_size+tolerance);
-//        }
         if (level > 0) {
-            hex_support(height-grid_line_depth);
-        } else {
-            //linear_extrude(height=base_thickness-grid_line_depth) hex_shape(hex_size);
+            render_support(tile, hex_data, support_width=grid_line_width);
         }
 
-        if (tile[1] == SUPPORT) {
-            hex_support(height-grid_line_depth);
+        if (terrain == SUPPORT) {
+            translate([0,0,height-fudge]) linear_extrude(height=grid_line_depth+fudge) {
+                difference() { hex_shape(top_size); hex_shape(top_size-wall_width+tolerance); }
+            }
         } else {
-             translate([0,0,height-grid_line_depth]) linear_extrude(height=grid_line_depth) hex_shape(top_size);
-             top_texture(height=height, tile=tile, top_size=top_size, position=position);
+            translate([0,0,height-fudge]) {
+                cap(thickness=base_thickness+2*fudge, hollow=(terrain == SUPPORT));
+            }
+            translate([0,0,height+base_thickness]) linear_extrude(height=grid_line_depth+fudge) {
+                hex_shape(top_size);
+            }
+            translate([0,0,height+base_thickness+grid_line_depth]) {
+                if (is_file_type("stl", terrain[0])) {
+                    surface_geometry(hex_data[HEX_TERRAIN]);
+                } else {
+                    top_texture(hex_data[HEX_TERRAIN]);
+                }
+            }
         }
     }
 }
 
-function distance(a, b) =
-    (abs(a.x -b.x) + abs(a.x + a.y - b.x - b.y) + abs(a.y - b.y)) / 2;
-
-function rangeForCol(size, col) =
-    let (
-        start = -(size-1),
-        end = (size+col)/2)
-    [start:end];
-
-
-module hex_tile(size, tile_data) {
-    for (i = range_from(hexes_per_megahex(size))) {
-        hex(grid_position=hex_offset_to_axial(size, i), tile=tile_data[i % len(tile_data)]);
+module tile_outline(tile) {
+    hexes = tile[TILE_HEXES];
+    union() {
+        for (i = range_from(hexes)) {
+            translate(axial_to_xy(hexes[i][HEX_POSITION], hex_size)) hex_shape(hex_size);
+        }
     }
+}
+
+module render_tile(type, size, tile_data) {
+    tile = create_tile(type=type, size=size, data=tile_data);
+    intersection() {
+            for (i = range_from(tile[TILE_HEXES])) {
+                render_hex(tile, i);
+            }
+            max_height = max([for (i=range_from(tile_data)) tile_data[0]]);
+            linear_extrude(max_height) offset(delta=tolerance) tile_outline(tile);
+    }
+}
+
+module rect_tile(size, tile_data) {
+    render_tile("rect", size, tile_data);
 }
 
 module semi_hex_tile(size, tile_data) {
-    middle_row_count = 2*size - 1;
-    hex_count = (hexes_per_megahex(size) + middle_row_count) / 2;
-    for (i = range_from(hex_count)) {
-        hex(grid_position=hex_offset_to_axial(size, i), tile=tile_data[i % len(tile_data)]);
-    }
+    render_tile("semi_hex", size, tile_data);
 }
 
-/*
- Generate a rectangular tile of the given size
-*/
-module rect_tile(size, tile_data) {
-    for (i = range_from(size.x * size.y)) {
-        hex(grid_position=rectangle_offset_to_axial(size, i), tile=tile_data[i % len(tile_data)]);
-    }
+module hex_tile(size, tile_data) {
+    render_tile("hex", size, tile_data);
 }
 
-//textures = [
-//    [5, SUPPORT],
-//    []
-//hex_tile(size=2, tileData=[[1,STONE_PATH]]);
-//for (i = [0:(len(textures)-1)]) {
-//    echo(texture=textures[i]);
-//    translate([i*2*dx,0,0]) hex_tile(size=1, tileData=[textures[i]]);
-//}
-//rect_tile(size=[3,4], tile_data=[[1,STONE_PATH],[2,STONE_PATH]]);
-//    [],[],[3,[]],[3,[]],[3,[]],
-//    [], [3,[]],[3,STONE_PATH],[3,[]],[2,[]],
-//    [5,[]],[5,[]],[5,[]],[5,[]],[5,[]]]);
-
-//semiHexTile(size=3, tileData=[
-//    [],[],[3,STONE_PATH],[3,STONE_ROUGH],[3,STONE_ROUGH],
-//    [], [3,STONE_PATH],[3,STONE_PATH],[3,STONE_PATH],[2,STONE_PATH],
-//    [5,STONE_ROUGH],[5,STONE_PATH],[5,STONE_PATH],[5,STONE_ROUGH],[5,STONE_ROUGH]]);
-
-//surface(file="stones.png", center=true);
+module arrange_parts(distance) {
+    parts_per_side = ceil(sqrt($children));
+    separation = distance / parts_per_side;
+    translate(-distance/2, distance/2) {
+        for (i = [0:1:$children-1]) {
+            translate([(i % parts_per_side)*separation, floor(i/parts_per_side)*separation]) children(i);
+        }
+    }
+}

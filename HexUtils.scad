@@ -12,7 +12,7 @@ default_side = default_hex_size / sqrt(3); // for hexes that fit an inscribed ci
 q_basis = [0,1]; // horizontal unit vector
 r_basis = [1,1]; // diagonal unit vector
 
-function default(value, default) = (value != undef) ? value : default;
+function default(value, default) = (value == undef) ? default : value;
 function range(v) = [0:(len(v)-1)];
 function is_odd(x) = (x % 2) != 0;
 function is_even(x) = [x % 2] == 0;
@@ -77,7 +77,10 @@ module hex_prism(height, size, size1, size2, center) {
 
 function hexes_per_megahex(size) = 3*size*size - 3*size + 1;
 function tri(n) = n*(n+1) / 2;
-function range_from(size) = [0:(size-1)];
+function range_from(size) =
+    let(
+        actual_size = (size[0] == undef) ? size : len(size))
+    [0:(actual_size-1)];
 
 /*
  Returns the ordinal value of the start of a row for a hex tile of the specified size
@@ -135,16 +138,36 @@ function rectangle_offset_to_axial(size, offset) =
         y = (offset - x) / size.x)
     [x - (y + (is_odd(y) ? 1 : 0)) / 2, y];
 
-module layout_hex(size, hex_size, symbols) {
-    for (i = range(symbols)) {
-        echo(hex_size=hex_size, axial=hex_offset_to_axial(size, i), xy=axial_to_xy(hex_offset_to_axial(size, i), hex_size));
-        translate(axial_to_xy(hex_offset_to_axial(size, i), hex_size)) {
-            text(symbols[i]);
-        }
-    }
-}
+function is_in_rect_tile(size, pos) =
+    (0 <= pos.x) && (pos.x < size.x) && (0 <= pos.y) && (pos.y < size.y);
+
+function is_in_hex_tile(size, pos) = axial_distance([0, 0], pos) < size;
+
+function is_in_semi_hex_tile(size, pos) = is_in_hex_tile(size, pos) && pos.y >= 0;
+
+DIRECTIONS = ["NE", "E", "SE", "SW", "W", "NW"];
+ANGLES_FOR_DIRECTION = [ 0, 60, 120, 180, 240, 300 ];
+STEP_FOR_DIRECTION = [ [1,0], [1,-1], [0,-1], [-1,0], [-1,1], [0,1] ];
+
+// convert a direction symbol into a unit vector
+//function step(dir) =
+//    (dir == "E") ? [1,0]
+//        : (dir == "SE") ? [1,-1]
+//        : (dir == "SW") ? [0,-1]
+//        : (dir == "W") ? [-1,0]
+//        : (dir == "NW") ? [-1,1]
+//        : dir == "NE") ? [0,1]
+//        : [];
 
 
-//function tri2(x) = x == 1 ? 1 : x + tri2(x-1);
-layout_hex(size=3, hex_size=10, symbols=[for (i = [0:18]) str(i)]);
-//test_offset_lookup();
+function hex_positions(size) =
+    [for (i = range_from(hexes_per_megahex(size))) hex_offset_to_axial(size, i)];
+
+function rect_positions(size) =
+    [for (i = range_from(size.x * size.y)) rectangle_offset_to_axial(size, i)];
+
+function semi_hex_positions(size) =
+    let(
+        middle_row_count = 2*size - 1,
+        hex_count = (hexes_per_megahex(size) + middle_row_count) / 2)
+    [for (i = range_from(hex_count)) hex_offset_to_axial(size, i)];

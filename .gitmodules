@@ -1,0 +1,3 @@
+[submodule "voronoi"]
+	path = voronoi
+	url = git@github.com:felipesanches/OpenSCAD_Voronoi_Generator.git

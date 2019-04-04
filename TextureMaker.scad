@@ -4,8 +4,11 @@
 
 include <HexTiles.scad>
 
-module texture(tile) {
-    top_texture(height=0, tile=tile, position=0);
+module texture(terrain) {
+    union() {
+        linear_extrude(height=grid_line_depth+fudge) hex_shape(top_size);
+        translate([0,0,grid_line_depth]) top_texture(terrain=terrain);
+    }
 }
 
-texture([0,["grass", 128, 1, 0.005]]);
+texture(["stonesx", 64 , 5]);

@@ -63,6 +63,15 @@ module hex_shape(size) {
     polygon([[0,2*_dy],[_dx,_dy],[_dx,-_dy],[0,-2*_dy],[-_dx,-_dy],[-_dx,_dy]]);
 }
 
+module beveled_hex_shape(size) {
+    bevel_width = 0.5;
+    _dx = dx(size-bevel_width);
+    _dy = dy(size-bevel_width);
+    offset(r=bevel_width/2, chamfer=true) {
+        polygon([[0,2*_dy],[_dx,_dy],[_dx,-_dy],[0,-2*_dy],[-_dx,-_dy],[-_dx,_dy]]);
+    }
+}
+
 /*
  Create a 3d hexagonal prism/truncated pyramid with center at the origin
 */
@@ -75,8 +84,14 @@ module hex_prism(height, size, size1, size2, center) {
 }
 
 
-function hexes_per_megahex(size) = 3*size*size - 3*size + 1;
+function hexes_per_megahex(size) =
+    let(
+        _size = (size[0] == undef) ? [size, size] : size,
+        small = min(_size), large = max(_size))
+    3*small*small - 3*small + 1 + (large-small)*small;
+
 function tri(n) = n*(n+1) / 2;
+
 function range_from(size) =
     let(
         actual_size = (size[0] == undef) ? size : len(size))
@@ -91,10 +106,15 @@ function range_from(size) =
     row -1:   03  04  05  06      offset =  3     0 1
     row -2:     00  01  02        offset =  0
 */
-function hex_row_offset(size, row) =
-    (row < size)
-        ? tri(2*size + row-2) - tri(size-1)
-        : hexes_per_megahex(size) - tri(2*size - row) + tri(size-1);
+//function hex_row_offset(size, row) =
+//    (row < size)
+//        ? tri(2*size + row-2) - tri(size-1)
+//        : hexes_per_megahex(size) - tri(2*size - row) + tri(size-1);
+
+function hexes_per_row(size) =
+    let(
+        w = 2*size.x-1)
+    [for (i = [0:(size.y)-1]) w-i];
 
 /*
  Returns the row for a given offset, with the center row being row 0
@@ -102,9 +122,9 @@ function hex_row_offset(size, row) =
 function hex_offset_to_row(size, offset) =
     (offset > hexes_per_megahex(size) / 2)
         ? -hex_offset_to_row(size, hexes_per_megahex(size) - offset - 1)
-        : (offset < size)
-            ? 1-size
-            : 2 + hex_offset_to_row(size + 1, offset - size);
+        : (offset < size.x)
+            ? 1-size.x
+            : 2 + hex_offset_to_row([size.x + 1, size.y], offset - size.x);
 
 /*
  Returns the column for a given offset, with the center hex as column 0
@@ -114,20 +134,20 @@ function hex_offset_to_row(size, offset) =
 function hex_offset_to_column(size, offset) =
     (offset > hexes_per_megahex(size) / 2)
         ? -hex_offset_to_column(size, hexes_per_megahex(size) - offset - 1)
-        : (offset < size)
+        : (offset < size.x)
             ? offset
-            : hex_offset_to_column(size + 1, offset - size) - 1;
+            : hex_offset_to_column([size.x + 1, size.y], offset - size.x) - 1;
 
 /*
  Returns the axial coodinates of a given hex offset value, assuming the center hex is 0,0
 */
 function hex_offset_to_axial(size, offset) =
     let (
-        row = -hex_offset_to_row(size, offset),
-        col = hex_offset_to_column(size, offset) - row
+        _size = (size[0] == undef) ? size : size.x,
+        row = -hex_offset_to_row(_size, offset),
+        col = hex_offset_to_column(_size, offset) - row
     )
     [col, row];
-
 
 /*
  Returns the axial coordinates of a given rectangular offset value/ Assumes 0,0 is offset 0 at lower left
@@ -145,9 +165,10 @@ function is_in_hex_tile(size, pos) = axial_distance([0, 0], pos) < size;
 
 function is_in_semi_hex_tile(size, pos) = is_in_hex_tile(size, pos) && pos.y >= 0;
 
-DIRECTIONS = ["NE", "E", "SE", "SW", "W", "NW"];
+// Direction 
 ANGLES_FOR_DIRECTION = [ 0, 60, 120, 180, 240, 300 ];
-STEP_FOR_DIRECTION = [ [1,0], [1,-1], [0,-1], [-1,0], [-1,1], [0,1] ];
+//STEP_FOR_DIRECTION = [ [1,0], [-1,1], [-1,0], [0,-1], [1,-1], [0,1] ];
+STEP_FOR_DIRECTION = [ [1,0], [0,1], [-1,1], [-1,0], [0,-1], [1,-1] ];
 
 // convert a direction symbol into a unit vector
 //function step(dir) =
@@ -161,13 +182,16 @@ STEP_FOR_DIRECTION = [ [1,0], [1,-1], [0,-1], [-1,0], [-1,1], [0,1] ];
 
 
 function hex_positions(size) =
-    [for (i = range_from(hexes_per_megahex(size))) hex_offset_to_axial(size, i)];
+    let (_size = (size[0] == undef) ? [size, size] : size)
+    [for (i = range_from(hexes_per_megahex(_size.x))) hex_offset_to_axial(_size.x, i)];
 
 function rect_positions(size) =
+    let (_size = (size[0] == undef) ? [size, size] : size)
     [for (i = range_from(size.x * size.y)) rectangle_offset_to_axial(size, i)];
 
 function semi_hex_positions(size) =
     let(
-        middle_row_count = 2*size - 1,
-        hex_count = (hexes_per_megahex(size) + middle_row_count) / 2)
-    [for (i = range_from(hex_count)) hex_offset_to_axial(size, i)];
+        _size = (size[0] == undef) ? [size, size] : size,
+        middle_row_count = 2*_size.x - 1,
+        hex_count = (hexes_per_megahex(_size.x) + middle_row_count) / 2)
+    [for (i = range_from(hex_count)) hex_offset_to_axial(_size.x, i)];

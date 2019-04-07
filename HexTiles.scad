@@ -4,9 +4,8 @@
  Hexes are referenced by axial coordinates (see https://www.redblobgames.com/grids/hexagons/)
  the x axis gets the pointy ends of the hex, while y is flat
 
- TODO: allow [x,y] size values for hexes and semi-hexes
  TODO: convert remaining png surfaces to stl
- TODO: render parts without texture
+ TODO: render parts without texture for fast testing
 */
 
 use <MCAD/triangles.scad>

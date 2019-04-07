@@ -111,45 +111,7 @@ function range_from(size) =
 //        ? tri(2*size + row-2) - tri(size-1)
 //        : hexes_per_megahex(size) - tri(2*size - row) + tri(size-1);
 
-function hexes_per_row(size) =
-    let(
-        w = 2*size.x-1)
-    [for (i = [0:(size.y)-1]) w-i];
-
-/*
- Returns the row for a given offset, with the center row being row 0
-*/
-function hex_offset_to_row(size, offset) =
-    (offset > hexes_per_megahex(size) / 2)
-        ? -hex_offset_to_row(size, hexes_per_megahex(size) - offset - 1)
-        : (offset < size.x)
-            ? 1-size.x
-            : 2 + hex_offset_to_row([size.x + 1, size.y], offset - size.x);
-
-/*
- Returns the column for a given offset, with the center hex as column 0
- size=3 offset=3
-    size=4, offset=0 => 0-4+1 => -3
-*/
-function hex_offset_to_column(size, offset) =
-    (offset > hexes_per_megahex(size) / 2)
-        ? -hex_offset_to_column(size, hexes_per_megahex(size) - offset - 1)
-        : (offset < size.x)
-            ? offset
-            : hex_offset_to_column([size.x + 1, size.y], offset - size.x) - 1;
-
-/*
- Returns the axial coodinates of a given hex offset value, assuming the center hex is 0,0
-*/
-function hex_offset_to_axial(size, offset) =
-    let (
-        _size = (size[0] == undef) ? size : size.x,
-        row = -hex_offset_to_row(_size, offset),
-        col = hex_offset_to_column(_size, offset) - row
-    )
-    [col, row];
-
-/*
+    /*
  Returns the axial coordinates of a given rectangular offset value/ Assumes 0,0 is offset 0 at lower left
 */
 function rectangle_offset_to_axial(size, offset) =
@@ -181,17 +143,67 @@ STEP_FOR_DIRECTION = [ [1,0], [0,1], [-1,1], [-1,0], [0,-1], [1,-1] ];
 //        : [];
 
 
+function shift(positions, offset) =
+    [ for (p = positions) p + offset ];
+
+//function hex_positions(size) =
+//    let (_size = (size[0] == undef) ? [size, size] : size)
+//    [for (i = range_from(hexes_per_megahex(_size.x))) hex_offset_to_axial(_size.x, i)];
+
+function invert_rows(positions) =
+    let(
+        ys = [for (p = positions) p.y],
+        row_span = max(ys) - min(ys),
+        first_row = [for (p = positions) if (p.y == positions[0].y) p],
+        remaining_rows = [for (p = positions) if (p.y != positions[0].y) p])
+    (len(remaining_rows) == 0)
+        ? first_row
+        : concat(
+            shift(invert_rows(remaining_rows), [0,1]),
+            shift(first_row, [row_span, -row_span]));
+
+function hexes_per_row(size) =
+    [for (i = [size.y-1:-1:0]) (size.x + size.y - 1) - i];
+
+function x_range(count) =
+    let(start = -floor(count/2))
+    [start:(start+count-1)];
+
+/*
+With no adjust:
+ECHO: "hex_positions: size=[1,2]: Assert Failed!
+    [[0, 1], [0, 0], [1, 0], [1, 0]] expected to be
+    [[0, 1], [0, 0], [1, 0], [1, -1]]"
+    delta_y should be -1
+ECHO: "hex_positions: size=2: Assert Failed!
+    [[0, 1], [1, 1], [0, 0], [1, 0], [2, 0], [1, 0], [2, 0]] expected to be
+    [[0, 1], [1, 1], [0, 0], [1, 0], [2, 0], [1, 1], [2, 1]]"
+    delta_y should be -1
+    For size.y==1 => 0
+    For size.y==2 => -1
+C*/
 function hex_positions(size) =
     let (_size = (size[0] == undef) ? [size, size] : size)
-    [for (i = range_from(hexes_per_megahex(_size.x))) hex_offset_to_axial(_size.x, i)];
+    concat(trapezoid_positions(_size),
+        (_size.y == 1) ? [] : shift(invert_rows(trapezoid_positions([_size.x, _size.y-1])), [1,1-_size.y]));
+
+//    let (
+//        _size = (size[0] == undef) ? [2*size-1, size] : size,
+//        y_max = _size.y - 1,
+//        y_range = [y_max:-1:-y_max],
+//        counts = hexes_per_row(_size))
+//    [for (j = y_range) for (i = x_range(counts[abs(j)])) [i-((j>0)?j:0), j] ];
 
 function rect_positions(size) =
     let (_size = (size[0] == undef) ? [size, size] : size)
     [for (i = range_from(size.x * size.y)) rectangle_offset_to_axial(size, i)];
 
-function semi_hex_positions(size) =
-    let(
+function trapezoid_positions(size) =
+    let (
         _size = (size[0] == undef) ? [size, size] : size,
-        middle_row_count = 2*_size.x - 1,
-        hex_count = (hexes_per_megahex(_size.x) + middle_row_count) / 2)
-    [for (i = range_from(hex_count)) hex_offset_to_axial(_size.x, i)];
+        y_max = _size.y - 1,
+        counts = hexes_per_row(_size))
+    [for (j = [0:y_max]) for (i = range_from(counts[j])) [i, y_max-j] ];
+
+
+function semi_hex_positions(size) = trapezoid_positions(size);

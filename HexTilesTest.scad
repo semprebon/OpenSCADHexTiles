@@ -2,7 +2,7 @@ include <HexTiles.scad>
 use <TestSupport.scad>
 
 // Which test part to print
-part = "tolerance_test"; // [tolerance_test, texture_test, support_test, all]
+part = "all"; // [tolerance_test, texture_test, support_test, all]
 
 assert_equals(false, ends_with(".stl", "vine.png"), "ends_with with non-matching");
 assert_equals(true, ends_with(".stl", "vine.stl"), "ends_with with matching");
@@ -14,15 +14,14 @@ test_tile = create_tile(type="hex", size=2, data=[
         [0,FLAT],[1,FLAT],
     [5,FLAT],[6,FLAT],[2,FLAT],
         [4,FLAT],[3,FLAT]]);
-assert_equals([[0,0],6,FLAT], hex_at_position(test_tile, [0,0]), "hex_at_position for [0,0]");
-assert_equals(undef, hex_at_position(test_tile, [1,1]), "hex_at_position for [1,1]");
+assert_equals([[0,0],5,FLAT], hex_at_position(test_tile, [0,0]), "hex_at_position for [0,0]");
+assert_equals(undef, hex_at_position(test_tile, [2,1]), "hex_at_position for [2,1]");
 
 module tolerance_test() {
-    echo("tolerance_test");
     arrange_parts(70) {
         render_tile("hex", 1, [[1,FLAT]]);
-        //render_tile("rect", [2,1], [[1,FLAT]]);
-        //render_tile("semi_hex", 2, [[0,FLAT]]);
+        render_tile("rect", [2,1], [[1,FLAT]]);
+        render_tile("semi_hex", 2, [[0,FLAT]]);
     }
 }
 

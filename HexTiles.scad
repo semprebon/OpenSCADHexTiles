@@ -16,7 +16,7 @@ base_thickness = 1.6;
 level_thickness = 6;
 
 wall_thickness = 1.6;
-tolerance = 0.2;
+tolerance = 0.3;
 grid_line_width = wall_thickness;
 grid_line_depth = 0.8;
 
@@ -25,16 +25,14 @@ pattern_size = 64;
 
 fudge = 0.003;
 
-STONE = ["stones.stl"];
-WOOD = ["wood.stl"];
-DIRT = ["sand_64", 128, 1];
+GRAVEL = ["gravel.stl", 128, 1];
 GRASS = ["grass.stl"];
-
-ROCKS = ["rocks.stl"];
-DEBRIS = ["stones", 64, 4];
-
-BRUSH = ["vines.stl"];
+ROCK = ["rock.stl"];
+STONE = ["stone.stl"];
+VINE = ["vine.stl"];
 WATER = ["water.stl"];
+WOOD = ["wood.stl"];
+
 SUPPORT = ["support", 0, 0];
 FLAT = [];
 NONE = ["none"];
@@ -78,8 +76,8 @@ TILE_HEXES = 2; //
 
 /* Tile geometries */
 TILE_TYPE_HEX = "hex";
-TILE_TYPE_SEMI_HEX = "semi_hex";
-TILE_TYPE_RECT = "rect";
+TILE_TYPE_TRAPEZOID = "trapezoid";
+TILE_TYPE_RECT = "rectangle";
 
 /*
  Create a specified type and size of tile from texture information
@@ -87,8 +85,9 @@ TILE_TYPE_RECT = "rect";
 function create_tile(type, size, data) =
     let(
         positions = (type == TILE_TYPE_HEX) ? hex_positions(size)
-            : (type == TILE_TYPE_SEMI_HEX) ? semi_hex_positions(size)
+            : (type == TILE_TYPE_TRAPEZOID) ? trapezoid_positions(size)
             : (type == TILE_TYPE_RECT) ? rect_positions(size)
+            : (type == "triangle") ? trapezoid_positions(1, (size.x == undef) ? size: size.x, 1)
             : ["error"],
         hexes = [for (i = range_from(len(positions)))
                     hex_data(position=positions[i], descriptor = data[i % len(data)])])
@@ -109,6 +108,10 @@ function max_level(tile) = max([for (i=range_from(tile[TILE_HEXES])) tile[TILE_H
 
 function is_empty_hex(tile, i) = tile[TILE_HEXES][i][HEX_TERRAIN] == NONE;
 
+function is_support_tile(tile) =
+    let(supports = [ for (hex = tile[TILE_HEXES]) if (hex[HEX_TERRAIN] == SUPPORT) hex[HEX_LEVEL] ])
+    (len(supports) == len(tile[TILE_HEXES]) && (max(supports) == min(supports)));
+     
 /*
  Generate the textured top of a hex from an image
 */
@@ -270,14 +273,22 @@ module tile_outline(tile) {
  */
 module render_tile(type, size, tile_data) {
     tile = create_tile(type=type, size=size, data=tile_data);
-    intersection() {
-            for (i = range_from(tile[TILE_HEXES])) {
-                if (!is_empty_hex(tile, i)) {
-                    render_hex(tile, i);
+    difference() {
+        intersection() {
+                for (i = range_from(tile[TILE_HEXES])) {
+                    if (!is_empty_hex(tile, i)) {
+                        render_hex(tile, i);
+                    }
                 }
-            }
-            max_height = max([for (i=range_from(tile_data)) tile_data[0]]);
-            linear_extrude(max_height) offset(delta=1.5*tolerance) tile_outline(tile);
+                max_height = max([for (i=range_from(tile_data)) tile_data[0]]);
+                linear_extrude(max_height) offset(delta=1.5*tolerance) tile_outline(tile);
+        }
+        if (is_support_tile(tile)) {
+            offset = grid_line_width + wall_thickness;
+            echo(offset=offset);
+            linear_extrude(z = (max_level(tile) + 2)*level_thickness) offset(r=-offset)
+                offset(delta=fudge, chamfer=true) tile_outline(tile);
+        }
     }
 }
 

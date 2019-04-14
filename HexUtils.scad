@@ -97,19 +97,6 @@ function range_from(size) =
         actual_size = (size[0] == undef) ? size : len(size))
     [0:(actual_size-1)];
 
-/*
- Returns the ordinal value of the start of a row for a hex tile of the specified size
- For a hex of size 2:
-    row  2:     16  17  18        offset = 16
-    row  1:   12  13  14  15      offset = 12     5 6
-    row  0: 07  08  09  10  11    offset =  7    2 3 4
-    row -1:   03  04  05  06      offset =  3     0 1
-    row -2:     00  01  02        offset =  0
-*/
-//function hex_row_offset(size, row) =
-//    (row < size)
-//        ? tri(2*size + row-2) - tri(size-1)
-//        : hexes_per_megahex(size) - tri(2*size - row) + tri(size-1);
 
     /*
  Returns the axial coordinates of a given rectangular offset value/ Assumes 0,0 is offset 0 at lower left
@@ -129,26 +116,10 @@ function is_in_semi_hex_tile(size, pos) = is_in_hex_tile(size, pos) && pos.y >= 
 
 // Direction 
 ANGLES_FOR_DIRECTION = [ 0, 60, 120, 180, 240, 300 ];
-//STEP_FOR_DIRECTION = [ [1,0], [-1,1], [-1,0], [0,-1], [1,-1], [0,1] ];
 STEP_FOR_DIRECTION = [ [1,0], [0,1], [-1,1], [-1,0], [0,-1], [1,-1] ];
-
-// convert a direction symbol into a unit vector
-//function step(dir) =
-//    (dir == "E") ? [1,0]
-//        : (dir == "SE") ? [1,-1]
-//        : (dir == "SW") ? [0,-1]
-//        : (dir == "W") ? [-1,0]
-//        : (dir == "NW") ? [-1,1]
-//        : dir == "NE") ? [0,1]
-//        : [];
-
 
 function shift(positions, offset) =
     [ for (p = positions) p + offset ];
-
-//function hex_positions(size) =
-//    let (_size = (size[0] == undef) ? [size, size] : size)
-//    [for (i = range_from(hexes_per_megahex(_size.x))) hex_offset_to_axial(_size.x, i)];
 
 function invert_rows(positions) =
     let(
@@ -170,34 +141,38 @@ function x_range(count) =
     [start:(start+count-1)];
 
 /*
-With no adjust:
-ECHO: "hex_positions: size=[1,2]: Assert Failed!
-    [[0, 1], [0, 0], [1, 0], [1, 0]] expected to be
-    [[0, 1], [0, 0], [1, 0], [1, -1]]"
-    delta_y should be -1
-ECHO: "hex_positions: size=2: Assert Failed!
-    [[0, 1], [1, 1], [0, 0], [1, 0], [2, 0], [1, 0], [2, 0]] expected to be
-    [[0, 1], [1, 1], [0, 0], [1, 0], [2, 0], [1, 1], [2, 1]]"
-    delta_y should be -1
-    For size.y==1 => 0
-    For size.y==2 => -1
-C*/
+ Returns an array of axial (row,col) coordinates in a hexagon pattern of the
+ given size. For example, hex_position(3,2):
+              <--- 3 ---->
+      /     0,1   1,1   2,1
+    2 -  0,0   1,0   2,0   3,0
+            1,-1  2,-1  3,-1
+*/
 function hex_positions(size) =
     let (_size = (size[0] == undef) ? [size, size] : size)
     concat(trapezoid_positions(_size),
         (_size.y == 1) ? [] : shift(invert_rows(trapezoid_positions([_size.x, _size.y-1])), [1,1-_size.y]));
 
-//    let (
-//        _size = (size[0] == undef) ? [2*size-1, size] : size,
-//        y_max = _size.y - 1,
-//        y_range = [y_max:-1:-y_max],
-//        counts = hexes_per_row(_size))
-//    [for (j = y_range) for (i = x_range(counts[abs(j)])) [i-((j>0)?j:0), j] ];
-
+/*
+ Returns an array of axial (row,col) coordinates in a rectangle pattern of the
+ given size. For example, rectangle_position(3,2):
+              <--- 3 ---->
+      /     0,1   1,1   2,1   3,1
+    2 -  0,0   1,0   2,0   3,0
+*/
 function rect_positions(size) =
     let (_size = (size[0] == undef) ? [size, size] : size)
     [for (i = range_from(size.x * size.y)) rectangle_offset_to_axial(size, i)];
 
+/*
+ Returns an array of axial (row,col) coordinates in a trapezoid pattern of the
+ given size. For example, trapezoid_position(3,2):
+              <--- 3 ---->
+      /     0,1   1,1   2,1
+    2 -  0,0   1,0   2,0   3,0
+
+    Note: size.x=1 will result in a triangle
+*/
 function trapezoid_positions(size) =
     let (
         _size = (size[0] == undef) ? [size, size] : size,

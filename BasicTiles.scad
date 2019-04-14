@@ -3,19 +3,18 @@
 */
 
 include <HexTiles.scad>
-
-use <utils/build_plate.scad>
+//use <utils/build_plate.scad>
 //build_plate(3, 220, 220);
 
 // Type of tile
-type = "rect";       // [hex,semihex,rect]
-x_size = 1;         // size
-y_size = 1;         // Ignored for hex and semihex
-terrain = "stones"; // [stones,wood,grass,rocks,vines,water,support,flat]
-height = 6;         // [0:6]
+type = "semi_hex";      // [hex,trapezoid,rectangle,triangle]
+x_size = 1;             // [0:6]
+y_size = 1;             // [0:6]
+terrain = "support";    // [stones,wood,grass,rocks,vines,water,support,flat]
+height = 6;             // [0:6]
 
 P = STONE;
-R = ROCKS;
+R = ROCK;
 N = NONE;
 S = SUPPORT;
 
@@ -37,7 +36,7 @@ function terrain(terrain) =
         : [str(terrain, ".stl")];
 
 arrange_parts(220) {
-    echo(height=height, terrain=terrain(terrain));
+    echo(height=height, tt=terrain, terrain=terrain(terrain));
     render_tile(type, [x_size, y_size], [[height,terrain(terrain)]]);
 }
 
@@ -61,13 +60,18 @@ module h_3x3x6_support2() {
 }
 
 
-//h_3x3x6_support();
-
 module xy_rise() {
     semi_hex_tile(size=3, tile_data=[
               [3,P],[2,P],[1,P],
            [4,P],[3,P],[2,P],[1,P],
         [5,P],[5,P],[5,P],[5,P],[5,P]]);
+}
+
+module xy_rise_2() {
+    semi_hex_tile(size=3, tile_data=[
+              [3,P],[2,P],[1,P],
+           [4,P],[3,P],[2,P],[1,P],
+        [5,P],[4,P],[3,P],[2,P],[1,P]]);
 }
 
 module y_rise() {
@@ -84,6 +88,7 @@ module spiral() {
               [4,P],[3,P]]);
 }
 
+//xy_rise_2();
 
 //cap_piece(STONE_PATH);
 //translate([-2.5*hex_size, -dy*10, 0]) rect_tile([6,8], [[0,GRASS]]);

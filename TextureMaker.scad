@@ -11,4 +11,4 @@ module texture(terrain) {
     }
 }
 
-texture(["stonesx", 64 , 5]);
+texture(["gravel", 200 , 3]);

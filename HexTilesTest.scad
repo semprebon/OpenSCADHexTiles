@@ -10,35 +10,36 @@ assert_equals(true, is_file_type("stl", "vine.stl"), "is_file_type for matching 
 assert_equals(false, is_file_type("stl", "vine.png"), "is_file_type for nonmatching file");
 assert_equals(false, is_file_type("stl", "vstl.png"), "is_file_type for nonmatching file");
 
-test_tile = create_tile(type="hex", size=2, data=[
+test_tile = create_tile(shape=TILE_SHAPE_HEXAGON, size=2, data=[
         [0,FLAT],[1,FLAT],
     [5,FLAT],[6,FLAT],[2,FLAT],
         [4,FLAT],[3,FLAT]]);
 assert_equals([[0,0],5,FLAT], hex_at_position(test_tile, [0,0]), "hex_at_position for [0,0]");
 assert_equals(undef, hex_at_position(test_tile, [2,1]), "hex_at_position for [2,1]");
+echo(rectangle=create_tile(TILE_SHAPE_RECTANGLE, [2,1], [[1,GRASS]]));
 
 module tolerance_test() {
     arrange_parts(70) {
-        render_tile("hex", 1, [[1,GRASS]]);
-        render_tile("rect", [2,1], [[1,GRASS]]);
-        render_tile("rect", [1,2], [[1,GRASS]]);
-        render_tile("semi_hex", 2, [[0,GRASS]]);
+        render_tile(TILE_SHAPE_HEXAGON, 1, [[1,VINE]]);
+        render_tile(TILE_SHAPE_RECTANGLE, [2,1], [[1,VINE]]);
+        render_tile(TILE_SHAPE_RECTANGLE, [1,2], [[1,VINE]]);
+        //render_tile(TILE_SHAPE_TRAPEZOID, 2, [[0,GRASS]]);
     }
 }
 
 module single_texture_test() {
-    render_tile(TILE_TYPE_HEX, 1, [[1,FLAT]]);
+    render_tile(TILE_SHAPE_HEXAGON, 1, [[1,FLAT]]);
 }
 
 module texture_test() {
-    rect_tile([3,3], [
+    render_tile(TILE_SHAPE_RECTANGLE, [3,3], [
         [0,WATER],[0,DIRT],[0,STONE],
         [0,GRASS],[0,NONE],[0,ROCKS],
         [0,WOOD],[0,BRUSH],[0,FLAT]]);
 }
 
 module support_test() {
-    rect_tile([1,2],[[3,SUPPORT],[1,SUPPORT]]);
+    render_tile(TILE_SHAPE_RECTANGLE, [1,2],[[3,SUPPORT],[1,SUPPORT]]);
 }
 
 echo("Rendering part(s) ", part);

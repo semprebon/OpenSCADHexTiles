@@ -1,21 +1,19 @@
 // Basic computations and shapes for working with hexes
 // see https://www.redblobgames.com/grids/hexagons/ for detailed description
 //
-// Hexes are referenced by axial coordinates (row is normal, col is tilted by 60 dergees)
-//  /\/\
-// | | |
-//  \/\/
+// Hexes are oriented with points along the y axis, and usually referenced by
+// axial coordinates (row is normal, col is tilted by 60 degrees from vertical.
+// See shape positions functions for more detail.
 
-default_hex_size = 25.4;
-default_side = default_hex_size / sqrt(3); // for hexes that fit an inscribed circle (or miniature base) of 1"
+default_hex_size = 25.4; // separation of parallel sides; fits miniature base of 1"
+default_side = default_hex_size / sqrt(3); // hex side length
 
 q_basis = [0,1]; // horizontal unit vector
 r_basis = [1,1]; // diagonal unit vector
 
 function default(value, default) = (value == undef) ? default : value;
-function range(v) = [0:(len(v)-1)];
+function range(count) = (count[0] == undef) ? [0:(count-1)] : [0:(len(count)-1)];
 function is_odd(x) = (x % 2) != 0;
-function is_even(x) = [x % 2] == 0;
 
 /*
  Convert axial coordinates to cubic
@@ -63,42 +61,18 @@ module hex_shape(size) {
     polygon([[0,2*_dy],[_dx,_dy],[_dx,-_dy],[0,-2*_dy],[-_dx,-_dy],[-_dx,_dy]]);
 }
 
-module beveled_hex_shape(size) {
-    bevel_width = 0.5;
-    _dx = dx(size-bevel_width);
-    _dy = dy(size-bevel_width);
-    offset(r=bevel_width/2, chamfer=true) {
+/*
+ Create a 2d hex with beveled corners with center at the origin
+*/
+module beveled_hex_shape(size, bevel=0.5) {
+    _dx = dx(size-bevel);
+    _dy = dy(size-bevel);
+    offset(r=bevel/2, chamfer=true) {
         polygon([[0,2*_dy],[_dx,_dy],[_dx,-_dy],[0,-2*_dy],[-_dx,-_dy],[-_dx,_dy]]);
     }
 }
 
 /*
- Create a 3d hexagonal prism/truncated pyramid with center at the origin
-*/
-module hex_prism(height, size, size1, size2, center) {
-    _size1 = (size1 != undef) ? size1 : default(size, default_hex_size);
-    _size2 = (size2 != undef) ? size2 : default(size, default_hex_size);
-    linear_extrude(height=height, center=default(center,false), scale=_size2/_size1) {
-        hex_shape(_size1);
-    }
-}
-
-
-function hexes_per_megahex(size) =
-    let(
-        _size = (size[0] == undef) ? [size, size] : size,
-        small = min(_size), large = max(_size))
-    3*small*small - 3*small + 1 + (large-small)*small;
-
-function tri(n) = n*(n+1) / 2;
-
-function range_from(size) =
-    let(
-        actual_size = (size[0] == undef) ? size : len(size))
-    [0:(actual_size-1)];
-
-
-    /*
  Returns the axial coordinates of a given rectangular offset value/ Assumes 0,0 is offset 0 at lower left
 */
 function rectangle_offset_to_axial(size, offset) =
@@ -107,20 +81,19 @@ function rectangle_offset_to_axial(size, offset) =
         y = (offset - x) / size.x)
     [x - (y + (is_odd(y) ? 1 : 0)) / 2, y];
 
-function is_in_rect_tile(size, pos) =
-    (0 <= pos.x) && (pos.x < size.x) && (0 <= pos.y) && (pos.y < size.y);
-
-function is_in_hex_tile(size, pos) = axial_distance([0, 0], pos) < size;
-
-function is_in_semi_hex_tile(size, pos) = is_in_hex_tile(size, pos) && pos.y >= 0;
-
-// Direction 
+// Direction
 ANGLES_FOR_DIRECTION = [ 0, 60, 120, 180, 240, 300 ];
 STEP_FOR_DIRECTION = [ [1,0], [0,1], [-1,1], [-1,0], [0,-1], [1,-1] ];
 
+/*
+    add offset coordinate to each coordinate in positions
+*/
 function shift(positions, offset) =
     [ for (p = positions) p + offset ];
 
+/*
+    invert the order of the rows in positions
+*/
 function invert_rows(positions) =
     let(
         ys = [for (p = positions) p.y],
@@ -133,12 +106,11 @@ function invert_rows(positions) =
             shift(invert_rows(remaining_rows), [0,1]),
             shift(first_row, [row_span, -row_span]));
 
+/*
+    return an array containing the number of hexes in each positive row (0..size-1)
+*/
 function hexes_per_row(size) =
     [for (i = [size.y-1:-1:0]) (size.x + size.y - 1) - i];
-
-function x_range(count) =
-    let(start = -floor(count/2))
-    [start:(start+count-1)];
 
 /*
  Returns an array of axial (row,col) coordinates in a hexagon pattern of the
@@ -162,7 +134,7 @@ function hex_positions(size) =
 */
 function rect_positions(size) =
     let (_size = (size[0] == undef) ? [size, size] : size)
-    [for (i = range_from(size.x * size.y)) rectangle_offset_to_axial(size, i)];
+    [for (i = range(size.x * size.y)) rectangle_offset_to_axial(size, i)];
 
 /*
  Returns an array of axial (row,col) coordinates in a trapezoid pattern of the
@@ -178,7 +150,5 @@ function trapezoid_positions(size) =
         _size = (size[0] == undef) ? [size, size] : size,
         y_max = _size.y - 1,
         counts = hexes_per_row(_size))
-    [for (j = [0:y_max]) for (i = range_from(counts[j])) [i, y_max-j] ];
+    [for (j = [0:y_max]) for (i = range(counts[j])) [i, y_max-j] ];
 
-
-function semi_hex_positions(size) = trapezoid_positions(size);

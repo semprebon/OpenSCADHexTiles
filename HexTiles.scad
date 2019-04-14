@@ -4,8 +4,7 @@
  Hexes are referenced by axial coordinates (see https://www.redblobgames.com/grids/hexagons/)
  the x axis gets the pointy ends of the hex, while y is flat
 
- TODO: convert remaining png surfaces to stl
- TODO: render parts without texture for fast testing
+ TODO: option to render parts without texture for fast testing
 */
 
 use <MCAD/triangles.scad>
@@ -70,28 +69,29 @@ function hex_data(position, descriptor) = [position, descriptor[0], descriptor[1
 function hex_height(hex_data) = level_thickness * hex_data[HEX_LEVEL];
 
 /* Offsets ino tile object */
-TILE_TYPE = 0; // "hex", "semi_hex", or "rect
+TILE_SHAPE = 0; // "hex", "semi_hex", or "rect
 TILE_SIZE = 1; // [x,y] size of tile
 TILE_HEXES = 2; //
 
 /* Tile geometries */
-TILE_TYPE_HEX = "hex";
-TILE_TYPE_TRAPEZOID = "trapezoid";
-TILE_TYPE_RECT = "rectangle";
+TILE_SHAPE_HEXAGON = "hexagon";
+TILE_SHAPE_TRAPEZOID = "trapezoid";
+TILE_SHAPE_RECTANGLE = "rectangle";
+// TODO: implement parallelogram tiles
 
 /*
- Create a specified type and size of tile from texture information
+ Create a specified shape and size of tile from texture information
 */
-function create_tile(type, size, data) =
+function create_tile(shape, size, data) =
     let(
-        positions = (type == TILE_TYPE_HEX) ? hex_positions(size)
-            : (type == TILE_TYPE_TRAPEZOID) ? trapezoid_positions(size)
-            : (type == TILE_TYPE_RECT) ? rect_positions(size)
-            : (type == "triangle") ? trapezoid_positions(1, (size.x == undef) ? size: size.x, 1)
+        positions = (shape == TILE_SHAPE_HEXAGON) ? hex_positions(size)
+            : (shape == TILE_SHAPE_TRAPEZOID) ? trapezoid_positions(size)
+            : (shape == TILE_SHAPE_RECTANGLE) ? rect_positions(size)
+            : (shape == "triangle") ? trapezoid_positions(1, (size.x == undef) ? size: size.x, 1)
             : ["error"],
-        hexes = [for (i = range_from(len(positions)))
+        hexes = [for (i = range(len(positions)))
                     hex_data(position=positions[i], descriptor = data[i % len(data)])])
-    [type, size,  hexes];
+    [shape, size,  hexes];
 
 /*
  Return the hex data for a given hex position
@@ -104,7 +104,7 @@ function hex_at_position(tile, position) =
 function is_hex_inner_wall(tile, hex_data, dir) =
     hex_at_position(tile, hex_data[HEX_POSITION] + STEP_FOR_DIRECTION[dir]) != undef;
 
-function max_level(tile) = max([for (i=range_from(tile[TILE_HEXES])) tile[TILE_HEXES][i][HEX_LEVEL]]);
+function max_level(tile) = max([for (i=range(tile[TILE_HEXES])) tile[TILE_HEXES][i][HEX_LEVEL]]);
 
 function is_empty_hex(tile, i) = tile[TILE_HEXES][i][HEX_TERRAIN] == NONE;
 
@@ -135,7 +135,7 @@ module top_texture(terrain) {
 }
 
 /*
- Import top geometry
+ Import the textured top of a hex from from an stl file
 */
 module surface_geometry(terrain) {
     if (terrain != []) {
@@ -178,7 +178,7 @@ module render_support(tile, hex_data, support_width=0) {
     // support angles in at 45 degree overhang
     if (support_width > 0) {
         translate([0,0,height]) {
-            for (dir = range_from(6)) {
+            for (dir = range(6)) {
                 rotate([0,0,ANGLES_FOR_DIRECTION[dir]]) {
                     translate([dx-wall_thickness/2-support_width/2,0,0]) rotate([0,90,90]) translate([0,0,-dy]) {
                         triangle(support_width, support_width, 2*dy);
@@ -190,7 +190,7 @@ module render_support(tile, hex_data, support_width=0) {
     // outside wall
     difference() {
         linear_extrude(height=height) beveled_hex_shape(hex_size);
-        for (dir = range_from(6)) {
+        for (dir = range(6)) {
             if (is_hex_inner_wall(tile, hex_data, dir)) {
                 rotate(ANGLES_FOR_DIRECTION[dir]) opening(tile, hex_data, dir);
             }
@@ -262,7 +262,7 @@ module render_hex(tile, index) {
 module tile_outline(tile) {
     hexes = tile[TILE_HEXES];
     union() {
-        for (i = range_from(hexes)) {
+        for (i = range(hexes)) {
             if (!is_empty_hex(tile, i)) translate(axial_to_xy(hexes[i][HEX_POSITION], hex_size)) hex_shape(hex_size);
         }
     }
@@ -271,16 +271,16 @@ module tile_outline(tile) {
 /*
  Generates the entire tile
  */
-module render_tile(type, size, tile_data) {
-    tile = create_tile(type=type, size=size, data=tile_data);
+module render_tile(shape, size, tile_data) {
+    tile = create_tile(shape=shape, size=size, data=tile_data);
     difference() {
         intersection() {
-                for (i = range_from(tile[TILE_HEXES])) {
+                for (i = range(tile[TILE_HEXES])) {
                     if (!is_empty_hex(tile, i)) {
                         render_hex(tile, i);
                     }
                 }
-                max_height = max([for (i=range_from(tile_data)) tile_data[0]]);
+                max_height = max([for (i=range(tile_data)) tile_data[0]]);
                 linear_extrude(max_height) offset(delta=1.5*tolerance) tile_outline(tile);
         }
         if (is_support_tile(tile)) {
@@ -290,18 +290,6 @@ module render_tile(type, size, tile_data) {
                 offset(delta=fudge, chamfer=true) tile_outline(tile);
         }
     }
-}
-
-module rect_tile(size, tile_data) {
-    render_tile("rect", size, tile_data);
-}
-
-module semi_hex_tile(size, tile_data) {
-    render_tile("semi_hex", size, tile_data);
-}
-
-module hex_tile(size, tile_data) {
-    render_tile("hex", size, tile_data);
 }
 
 module arrange_parts(distance) {

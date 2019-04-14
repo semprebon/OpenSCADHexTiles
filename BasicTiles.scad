@@ -3,11 +3,11 @@
 */
 
 include <HexTiles.scad>
-//use <utils/build_plate.scad>
-//build_plate(3, 220, 220);
+use <utils/build_plate.scad>
+build_plate(3, 220, 220);
 
 // Type of tile
-type = "semi_hex";      // [hex,trapezoid,rectangle,triangle]
+type = TILE_SHAPE_RECTANGLE;      // [hex,trapezoid,rectangle,triangle]
 x_size = 1;             // [0:6]
 y_size = 1;             // [0:6]
 terrain = "support";    // [stones,wood,grass,rocks,vines,water,support,flat]
@@ -21,13 +21,12 @@ S = SUPPORT;
 module cap_piece(texture) {
     intersection() {
         linear_extrude(height=100) hex_shape(hex_size-2*tolerance);
-        hex_tile(1, [[1, texture]]);
+        render_tile(TILE_SHAPE_HEXAGON, 1, [[1, texture]]);
     }
 }
 
 module board(texture) {
-    rect_tile([8,4], [[0,texture]]);
-//    rect_tile([4,4], texture);
+    render_tile(TILE_SHAPE_RECTANGLE, [8,4], [[0,texture]]);
 }
 
 function terrain(terrain) =
@@ -42,7 +41,7 @@ arrange_parts(220) {
 
 
 module h_3x3x6_support() {
-    render_tile(TILE_TYPE_HEX, [3,3], [
+    render_tile(TILE_SHAPE_HEXAGON, [3,3], [
               [6,S],[6,S],[6,S],
            [6,S],[6,N],[6,N],[6,S],
         [6,S],[6,N],[6,N],[6,N],[6,S],
@@ -51,7 +50,7 @@ module h_3x3x6_support() {
 }
 
 module h_3x3x6_support2() {
-    render_tile(TILE_TYPE_HEX, [3,3], [
+    render_tile(TILE_SHAPE_HEXAGON, [3,3], [
               [6,S],[6,S],[6,S],
            [6,S],[6,S],[6,S],[6,S],
         [6,S],[6,S],[6,S],[6,S],[6,S],
@@ -61,28 +60,28 @@ module h_3x3x6_support2() {
 
 
 module xy_rise() {
-    semi_hex_tile(size=3, tile_data=[
+    render_tile(TILE_SHAPE_TRAPEZOID, size=3, tile_data=[
               [3,P],[2,P],[1,P],
            [4,P],[3,P],[2,P],[1,P],
         [5,P],[5,P],[5,P],[5,P],[5,P]]);
 }
 
 module xy_rise_2() {
-    semi_hex_tile(size=3, tile_data=[
+    render_tile(TILE_SHAPE_TRAPEZOID, size=3, tile_data=[
               [3,P],[2,P],[1,P],
            [4,P],[3,P],[2,P],[1,P],
         [5,P],[4,P],[3,P],[2,P],[1,P]]);
 }
 
 module y_rise() {
-    semi_hex_tile(size=3, tile_data=[
+    render_tile(TILE_SHAPE_TRAPEZOID, size=3, tile_data=[
               [3,P],[3,P],[3,P],
            [2,P],[2,P],[2,P],[2,P],
         [1,P],[1,P],[1,P],[1,P],[1,P]]);
 }
 
 module spiral() {
-    hex_tile(size=2, tile_data=[
+    render_tile(TILE_SHAPE_HEXAGON, size=2, tile_data=[
               [6,P],[7,P],
            [5,P],[1,P],[2,P],
               [4,P],[3,P]]);

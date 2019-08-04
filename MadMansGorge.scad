@@ -1,8 +1,5 @@
 /*
- An encounter on the edges of a gorge
-
- Pieces required
- * semi
+ An encounter on the edges of a gorge - an example of how to create more complex tiles
 */
 
 include <HexTiles.scad>;
@@ -11,7 +8,7 @@ use <utils/build_plate.scad>
 build_plate(3, 220, 220);uild_plate_selector=3;
 
 // Part
-part = "stairs"; // [rocky_rise,cliff_base,rocky_stairs,rocky_clearing,rocky_path,stone_clearing
+part = "stairs"; // [rocky_rise,cliff_base,stairs,rocky_clearing,rocky_path,stone_clearing,xy_rise,y_rise]
 parts = [part];
 
 P = STONE;
@@ -104,7 +101,11 @@ module render_part(part, height) {
     if (part == "rocky_rise") rocky_rise2();
     if (part == "cliff_base") cliff_base2();
     if (part == "stairs") stairs();
-}
+    if (part == "rocky_clearing") rocky_clearing();
+    if (part == "rocky_path") rocky_path();
+    if (part == "stone_clearing") stone_clearing();
+    if (part == "xy_rise") xy_rise();
+    if (part == "y_rise") y_rise();
 
 module render_parts(parts) {
     for (part = parts) {

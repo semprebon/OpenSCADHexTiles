@@ -23,7 +23,7 @@ module tolerance_test() {
         render_tile(TILE_SHAPE_HEXAGON, 1, [[1,VINE]]);
         render_tile(TILE_SHAPE_RECTANGLE, [2,1], [[1,VINE]]);
         render_tile(TILE_SHAPE_RECTANGLE, [1,2], [[1,VINE]]);
-        //render_tile(TILE_SHAPE_TRAPEZOID, 2, [[0,GRASS]]);
+        render_tile(TILE_SHAPE_TRAPEZOID, 2, [[0,GRASS]]);
     }
 }
 

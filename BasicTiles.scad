@@ -1,5 +1,5 @@
 /*
- An encounter on the edges of a gorge
+ A program for generating simple tiles through the command line.
 */
 
 include <HexTiles.scad>
